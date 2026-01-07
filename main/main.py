@@ -9,6 +9,7 @@ Image Scene Flow Organizer - ULTIMATE FIXED VERSION
 → Internal QSettings (no files)
 → Folder status indicator below preview (now correctly outside the preview widget)
 → Professional credit line added at the bottom
+→ Green loading progress bar when loading folders
 → Everything else 100% intact
 """
 import os
@@ -22,8 +23,10 @@ SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp", ".ti
 THUMB_MIN, THUMB_MAX, DEFAULT_THUMB = 60, 400, 180
 PADDING = 30
 
+
 def natural_key(s):
     return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
+
 
 class SmartLineEdit(QtWidgets.QLineEdit):
     def mousePressEvent(self, event):
@@ -41,9 +44,11 @@ class SmartLineEdit(QtWidgets.QLineEdit):
                 self.setText(clipboard_text)
         super().mousePressEvent(event)
 
+
 class DragDropListWidget(QtWidgets.QListWidget):
     double_left_clicked = QtCore.pyqtSignal(str, str)
     double_right_clicked = QtCore.pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QtWidgets.QListWidget.IconMode)
@@ -61,7 +66,7 @@ class DragDropListWidget(QtWidgets.QListWidget):
         self.setGridSize(QtCore.QSize(self.thumbnail_size + PADDING, self.thumbnail_size + PADDING + 50))
         self.thumbnail_cache = {}
         self.itemDoubleClicked.connect(self.handle_double_click)
-        self.setFocusPolicy(Qt.StrongFocus) # Enable keyboard navigation
+        self.setFocusPolicy(Qt.StrongFocus)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Left or event.key() == Qt.Key_Right:
@@ -151,7 +156,8 @@ class DragDropListWidget(QtWidgets.QListWidget):
         try:
             drag_rows = eval(e.mimeData().data('application/x-drag-rows').data().decode())
         except:
-            e.ignore(); return
+            e.ignore();
+            return
         if not drag_rows: e.ignore(); return
         pos = e.pos()
         target_item = self.itemAt(pos)
@@ -169,18 +175,16 @@ class DragDropListWidget(QtWidgets.QListWidget):
             self.item(insert_at + i).setSelected(True)
         e.acceptProposedAction()
 
+
 class ImageOrganizer(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Scene Flow Organizer")
-        # Internal settings
         self.settings = QSettings("ImageSceneFlowOrganizer", "Settings")
-        # Restore previous geometry/state if exists
         if self.settings.value("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
         if self.settings.value("windowState"):
             self.restoreState(self.settings.value("windowState"))
-        # If first run → force full screen using actual screen size
         if not self.settings.contains("geometry"):
             screen = QApplication.primaryScreen().availableGeometry()
             self.setGeometry(screen)
@@ -188,7 +192,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.folder = None
         self.preview_locked = False
         self.last_search_index = {1: -1, 2: -1}
-        self.current_folder_files = set()  # To track what was loaded initially
+        self.current_folder_files = set()
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -234,7 +238,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.thumb_slider.setValue(DEFAULT_THUMB)
         self.thumb_slider.valueChanged.connect(self.update_thumb_size)
 
-        # Search bars
         search1_label = QtWidgets.QLabel("Search 1 (Double Left-Click):")
         search1_label.setStyleSheet("font-weight: bold; color: #1976D2;")
         self.search_input1 = SmartLineEdit()
@@ -265,7 +268,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         search_layout2.addWidget(self.search_up_btn2)
         search_layout2.addWidget(self.search_down_btn2)
 
-        # Fixed-size preview (pure preview only)
         self.preview = QtWidgets.QLabel("Preview\n(Double LEFT-click: lock | Double RIGHT-click: unlock)")
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setFixedHeight(420)
@@ -281,10 +283,33 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             }
         """)
 
-        # Status label - now completely separate and below the preview
+        # Green loading progress bar
+        self.progress_bar = QtWidgets.QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Loading: %p%")
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #444;
+                border-radius: 6px;
+                text-align: center;
+                background: #222;
+                color: white;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4CAF50, stop:1 #8BC34A);
+                border-radius: 4px;
+            }
+        """)
+        self.progress_bar.setVisible(False)
+
+        # Status label - completely separate and below the preview
         self.status_label = QtWidgets.QLabel("No folder opened")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
+        self.status_label.setStyleSheet(
+            "font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
         self.status_label.setFixedHeight(40)
 
         # Credit line
@@ -312,9 +337,10 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         left_panel.addSpacing(25)
         left_panel.addWidget(self.preview)
         left_panel.addSpacing(10)
-        left_panel.addWidget(self.status_label)      # Status directly below preview
+        left_panel.addWidget(self.progress_bar)
+        left_panel.addWidget(self.status_label)
         left_panel.addSpacing(15)
-        left_panel.addWidget(credit_label)           # Professional credit at the bottom
+        left_panel.addWidget(credit_label)
         left_panel.addStretch()
 
         self.list = DragDropListWidget()
@@ -325,23 +351,20 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         main_layout = QtWidgets.QHBoxLayout(central)
         left_widget = QtWidgets.QWidget()
         left_widget.setLayout(left_panel)
-        left_widget.setFixedWidth(460)  # Fixed stable width
+        left_widget.setFixedWidth(460)
         main_layout.addWidget(left_widget)
         main_layout.addWidget(self.list, 1)
 
-        # Load last folder
         last_folder = self.settings.value("last_folder", "")
         if last_folder and os.path.isdir(last_folder):
             self.folder = last_folder
             self.load_folder_contents()
 
-        # Give focus to list for arrow keys
         self.list.setFocus()
 
-        # Timer to periodically check for new files (every 5 seconds)
         self.folder_watch_timer = QTimer(self)
         self.folder_watch_timer.timeout.connect(self.check_for_new_files)
-        self.folder_watch_timer.start(5000)  # 5000 ms = 5 seconds
+        self.folder_watch_timer.start(5000)
 
         self.show()
 
@@ -382,17 +405,30 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def load_folder_contents(self):
         if not self.folder:
             return
+
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        QApplication.processEvents()
+
         self.list.clear()
         self.list.thumbnail_cache.clear()
         files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         files.sort(key=natural_key)
-        for f in files:
+
+        total_files = len(files)
+        for idx, f in enumerate(files):
             path = os.path.join(self.folder, f)
             item = QtWidgets.QListWidgetItem(os.path.basename(f))
             item.setData(Qt.UserRole, path)
             item.setIcon(self.list.get_thumbnail_icon(path))
             self.list.addItem(item)
-        # Store current file set for later comparison
+
+            progress = int(((idx + 1) / total_files) * 100)
+            self.progress_bar.setValue(progress)
+            QApplication.processEvents()
+
+        self.progress_bar.setVisible(False)
+
         self.current_folder_files = set(files)
         self.update_status_label(in_sync=True)
         self.setWindowTitle(f"Image Scene Flow Organizer — {len(files)} images")
@@ -411,15 +447,18 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def update_status_label(self, in_sync=True, new_count=0):
         if not self.folder:
             self.status_label.setText("No folder opened")
-            self.status_label.setStyleSheet("font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
+            self.status_label.setStyleSheet(
+                "font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
             return
 
         if in_sync:
             self.status_label.setText("✓ All images in folder are loaded")
-            self.status_label.setStyleSheet("font-size: 13px; padding: 8px; color: #4CAF50; font-weight: bold; background: #222; border-radius: 6px;")
+            self.status_label.setStyleSheet(
+                "font-size: 13px; padding: 8px; color: #4CAF50; font-weight: bold; background: #222; border-radius: 6px;")
         else:
             self.status_label.setText(f"⚠ {new_count} new image(s) added – Reload recommended")
-            self.status_label.setStyleSheet("font-size: 13px; padding: 8px; color: #FF9800; font-weight: bold; background: #222; border-radius: 6px;")
+            self.status_label.setStyleSheet(
+                "font-size: 13px; padding: 8px; color: #FF9800; font-weight: bold; background: #222; border-radius: 6px;")
 
     def reload_folder(self):
         if not self.folder or self.list.count() == 0:
@@ -432,7 +471,13 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         )
         if reply != QtWidgets.QMessageBox.Yes:
             return
+
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        QApplication.processEvents()
+
         temp_paths = []
+        total_operations = self.list.count()
         for i in range(self.list.count()):
             item = self.list.item(i)
             old_path = item.data(Qt.UserRole)
@@ -444,11 +489,17 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                     self.list.thumbnail_cache[tmp_path] = self.list.thumbnail_cache.pop(old_path)
                 item.setData(Qt.UserRole, tmp_path)
                 temp_paths.append((item, tmp_path, ext))
+
+                progress = int(((i + 1) / (total_operations * 2)) * 100)
+                self.progress_bar.setValue(progress)
+                QApplication.processEvents()
             except Exception as e:
+                self.progress_bar.setVisible(False)
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
-        # Detect and rename new files to generic_000000.ext etc.
-        new_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT and not f.startswith("__TMP_RENAME_")]
+
+        new_files = [f for f in os.listdir(self.folder) if
+                     os.path.splitext(f)[1].lower() in SUPPORTED_EXT and not f.startswith("__TMP_RENAME_")]
         new_files.sort(key=natural_key)
         new_paths = []
         counter = 0
@@ -465,12 +516,13 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 os.rename(old_new_path, new_path)
                 new_paths.append(new_path)
             except Exception as e:
+                self.progress_bar.setVisible(False)
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename new file: {e}")
                 return
             counter += 1
-        # Now rename existing from tmp to numeric
+
         num_counter = 1
-        for (item, tmp_path, ext) in temp_paths:
+        for idx, (item, tmp_path, ext) in enumerate(temp_paths):
             new_name = f"{num_counter}{ext}"
             new_path = os.path.join(self.folder, new_name)
             while os.path.exists(new_path):
@@ -483,30 +535,40 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 item.setText(new_name)
                 if tmp_path in self.list.thumbnail_cache:
                     self.list.thumbnail_cache[new_path] = self.list.thumbnail_cache.pop(tmp_path)
+
+                progress = 50 + int(((idx + 1) / total_operations) * 50)
+                self.progress_bar.setValue(progress)
+                QApplication.processEvents()
             except Exception as e:
+                self.progress_bar.setVisible(False)
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
             num_counter += 1
-        # Add new items
+
         for new_path in new_paths:
             f = os.path.basename(new_path)
             item = QtWidgets.QListWidgetItem(f)
             item.setData(Qt.UserRole, new_path)
             item.setIcon(self.list.get_thumbnail_icon(new_path))
             self.list.addItem(item)
-        # Sort the entire list by natural key
+
         items = []
         for _ in range(self.list.count()):
             items.append(self.list.takeItem(0))
         items.sort(key=lambda it: natural_key(it.text()))
         for it in items:
             self.list.addItem(it)
-        # Update tracked files and status
+
+        self.progress_bar.setValue(100)
+        QApplication.processEvents()
+        self.progress_bar.setVisible(False)
+
         final_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         self.current_folder_files = set(final_files)
         self.update_status_label(in_sync=True)
         self.setWindowTitle(f"Image Scene Flow Organizer — {self.list.count()} images")
-        QtWidgets.QMessageBox.information(self, "Success", f"Folder reloaded! Existing files renamed, {len(new_paths)} new files added and renamed to generic_.")
+        QtWidgets.QMessageBox.information(self, "Success",
+                                          f"Folder reloaded! Existing files renamed, {len(new_paths)} new files added and renamed to generic_.")
 
     def update_thumb_size(self, val):
         self.thumb_label.setText(f"Thumbnail Size: {val}px")
@@ -667,6 +729,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 self.last_search_index[search_bar] = current_idx
                 return
             current_idx = (current_idx + step) % total
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
