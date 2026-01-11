@@ -2,13 +2,13 @@
 """
 Image Scene Flow Organizer - ULTIMATE FIXED VERSION
 → All original features preserved
-→ Opens FULL SCREEN reliably from first launch (using screen geometry)
-→ Remembers window size/state if you resize
+→ Opens MAXIMIZED reliably on first launch
+→ Remembers window size/state/position if you resize/move
 → Left panel & preview have stable fixed sizes
 → Keyboard arrow navigation (← →) with live preview update
 → Internal QSettings (no files)
-→ Folder status indicator below preview (now correctly outside the preview widget)
-→ Professional credit line added at the bottom
+→ Folder status indicator below preview (outside preview widget)
+→ Professional credit line at the bottom
 → Green loading progress bar when loading folders
 → Everything else 100% intact
 """
@@ -156,7 +156,7 @@ class DragDropListWidget(QtWidgets.QListWidget):
         try:
             drag_rows = eval(e.mimeData().data('application/x-drag-rows').data().decode())
         except:
-            e.ignore();
+            e.ignore()
             return
         if not drag_rows: e.ignore(); return
         pos = e.pos()
@@ -181,13 +181,19 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("Image Scene Flow Organizer")
         self.settings = QSettings("ImageSceneFlowOrganizer", "Settings")
-        if self.settings.value("geometry"):
-            self.restoreGeometry(self.settings.value("geometry"))
-        if self.settings.value("windowState"):
-            self.restoreState(self.settings.value("windowState"))
-        if not self.settings.contains("geometry"):
-            screen = QApplication.primaryScreen().availableGeometry()
-            self.setGeometry(screen)
+
+        # Restore previous geometry & window state if they exist
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+
+        window_state = self.settings.value("windowState")
+        if window_state:
+            self.restoreState(window_state)
+
+        # First launch → start maximized (most reliable method)
+        if not geometry:
+            self.showMaximized()
 
         self.folder = None
         self.preview_locked = False
@@ -196,6 +202,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
+
         left_panel = QtWidgets.QVBoxLayout()
         left_panel.setSpacing(10)
         left_panel.setContentsMargins(15, 15, 15, 15)
@@ -244,6 +251,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.search_input1.setPlaceholderText("Double left-click → fill & lock | LClick: copy+clear | RClick: paste")
         self.search_input1.returnPressed.connect(lambda: self.search_image(1, prev=False))
         self.search_input1.textChanged.connect(lambda: self.reset_search_index(1))
+
         search_layout1 = QtWidgets.QHBoxLayout()
         self.search_up_btn1 = QtWidgets.QPushButton("↑")
         self.search_down_btn1 = QtWidgets.QPushButton("↓")
@@ -259,6 +267,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.search_input2.setPlaceholderText("Double right-click → fill & unlock | LClick: copy+clear | RClick: paste")
         self.search_input2.returnPressed.connect(lambda: self.search_image(2, prev=False))
         self.search_input2.textChanged.connect(lambda: self.reset_search_index(2))
+
         search_layout2 = QtWidgets.QHBoxLayout()
         self.search_up_btn2 = QtWidgets.QPushButton("↑")
         self.search_down_btn2 = QtWidgets.QPushButton("↓")
@@ -352,6 +361,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         left_widget = QtWidgets.QWidget()
         left_widget.setLayout(left_panel)
         left_widget.setFixedWidth(460)
+
         main_layout.addWidget(left_widget)
         main_layout.addWidget(self.list, 1)
 
@@ -412,6 +422,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
         self.list.clear()
         self.list.thumbnail_cache.clear()
+
         files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         files.sort(key=natural_key)
 
@@ -428,7 +439,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             QApplication.processEvents()
 
         self.progress_bar.setVisible(False)
-
         self.current_folder_files = set(files)
         self.update_status_label(in_sync=True)
         self.setWindowTitle(f"Image Scene Flow Organizer — {len(files)} images")
@@ -436,8 +446,10 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def check_for_new_files(self):
         if not self.folder or not os.path.isdir(self.folder):
             return
+
         current_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         current_set = set(current_files)
+
         if current_set == self.current_folder_files:
             self.update_status_label(in_sync=True)
         else:
@@ -461,9 +473,14 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 "font-size: 13px; padding: 8px; color: #FF9800; font-weight: bold; background: #222; border-radius: 6px;")
 
     def reload_folder(self):
+        # ────────────────────────────────────────────────────────────────
+        # The rest of the methods remain completely unchanged
+        # ────────────────────────────────────────────────────────────────
+
         if not self.folder or self.list.count() == 0:
             QtWidgets.QMessageBox.warning(self, "Error", "No folder loaded!")
             return
+
         reply = QtWidgets.QMessageBox.question(
             self, "Reload Folder",
             "This will:\n1. Rename all current images to 1,2,3...\n2. Load any new images from the folder\n\nContinue?",
@@ -478,6 +495,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
         temp_paths = []
         total_operations = self.list.count()
+
         for i in range(self.list.count()):
             item = self.list.item(i)
             old_path = item.data(Qt.UserRole)
@@ -489,7 +507,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                     self.list.thumbnail_cache[tmp_path] = self.list.thumbnail_cache.pop(old_path)
                 item.setData(Qt.UserRole, tmp_path)
                 temp_paths.append((item, tmp_path, ext))
-
                 progress = int(((i + 1) / (total_operations * 2)) * 100)
                 self.progress_bar.setValue(progress)
                 QApplication.processEvents()
@@ -503,6 +520,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         new_files.sort(key=natural_key)
         new_paths = []
         counter = 0
+
         for f in new_files:
             old_new_path = os.path.join(self.folder, f)
             ext = os.path.splitext(f)[1]
@@ -535,7 +553,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 item.setText(new_name)
                 if tmp_path in self.list.thumbnail_cache:
                     self.list.thumbnail_cache[new_path] = self.list.thumbnail_cache.pop(tmp_path)
-
                 progress = 50 + int(((idx + 1) / total_operations) * 50)
                 self.progress_bar.setValue(progress)
                 QApplication.processEvents()
@@ -555,7 +572,9 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         items = []
         for _ in range(self.list.count()):
             items.append(self.list.takeItem(0))
+
         items.sort(key=lambda it: natural_key(it.text()))
+
         for it in items:
             self.list.addItem(it)
 
@@ -567,6 +586,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.current_folder_files = set(final_files)
         self.update_status_label(in_sync=True)
         self.setWindowTitle(f"Image Scene Flow Organizer — {self.list.count()} images")
+
         QtWidgets.QMessageBox.information(self, "Success",
                                           f"Folder reloaded! Existing files renamed, {len(new_paths)} new files added and renamed to generic_.")
 
@@ -618,10 +638,12 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if not self.folder or self.list.count() == 0:
             QtWidgets.QMessageBox.warning(self, "Error", "No images loaded!")
             return
+
         if QtWidgets.QMessageBox.question(self, "Rename All",
                                           f"Rename all {self.list.count()} images to 1, 2, 3, etc.?",
                                           QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
             return
+
         temp_paths = []
         for i in range(self.list.count()):
             item = self.list.item(i)
@@ -630,6 +652,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             tmp = os.path.join(self.folder, f"__TMP_RENAME_{i}{ext}")
             os.rename(old, tmp)
             temp_paths.append((item, tmp, ext))
+
         renamed = 0
         for idx, (item, tmp, ext) in enumerate(temp_paths, start=1):
             new = os.path.join(self.folder, f"{idx}{ext}")
@@ -637,6 +660,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             item.setData(Qt.UserRole, new)
             item.setText(os.path.basename(new))
             renamed += 1
+
         QtWidgets.QMessageBox.information(self, "Done", f"Renamed {renamed} images!")
 
     def rename_selected(self):
@@ -644,21 +668,27 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if not sel:
             QtWidgets.QMessageBox.warning(self, "No Selection", "Please select at least one image.")
             return
+
         base, ok = QtWidgets.QInputDialog.getText(self, "Rename Selected", "Enter base name (e.g. 0):")
         if not ok or not base.strip():
             return
+
         base = base.strip()
         renamed_items = sorted(sel, key=lambda x: self.list.row(x))
+
         max_counter = 0
         pattern = re.compile(rf"^{re.escape(base)}_(\d{{6}})\.[a-zA-Z]{{3,4}}$", re.IGNORECASE)
+
         for i in range(self.list.count()):
             name = self.list.item(i).text()
             match = pattern.match(name)
             if match:
                 max_counter = max(max_counter, int(match.group(1)))
+
         counter = max_counter + 1
         used_names = {self.list.item(i).text() for i in range(self.list.count())}
         new_items = []
+
         for item in renamed_items:
             old_path = item.data(Qt.UserRole)
             ext = os.path.splitext(old_path)[1]
@@ -677,9 +707,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
+
         rows = sorted([self.list.row(itm) for itm in new_items], reverse=True)
         for r in rows:
             self.list.takeItem(r)
+
         insert_at = 0
         for i in range(self.list.count()):
             name = self.list.item(i).text()
@@ -688,6 +720,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             else:
                 if insert_at > 0:
                     break
+
         if insert_at == 0:
             sample = new_items[0].text()
             for i in range(self.list.count()):
@@ -696,11 +729,14 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                     break
             else:
                 insert_at = self.list.count()
+
         for i, item in enumerate(new_items):
             self.list.insertItem(insert_at + i, item)
             item.setSelected(True)
+
         if new_items:
             self.list.scrollToItem(new_items[0], QAbstractItemView.PositionAtCenter)
+
         QtWidgets.QMessageBox.information(self, "Success", f"Renamed and placed {len(new_items)} images perfectly!")
 
     def search_image(self, search_bar, prev=False):
@@ -708,9 +744,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         text = text.strip().lower()
         if not text:
             return
+
         total = self.list.count()
         if total == 0:
             return
+
         start_index = self.last_search_index[search_bar]
         if start_index == -1:
             selected = self.list.selectedItems()
@@ -718,8 +756,10 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 start_index = self.list.row(selected[0])
             else:
                 start_index = -1 if not prev else 0
+
         step = -1 if prev else 1
         current_idx = (start_index + step) % total
+
         for _ in range(total):
             item = self.list.item(current_idx)
             if item and text in item.text().lower():
