@@ -11,6 +11,8 @@ Image Scene Flow Organizer - ULTIMATE FIXED VERSION
 → Professional credit line at the bottom
 → Green loading progress bar when loading folders
 → Everything else 100% intact
+
+UPDATED: Professional Apple-style Dark Theme with Blue Buttons
 """
 import os
 import sys
@@ -125,7 +127,8 @@ class DragDropListWidget(QtWidgets.QListWidget):
     def startDrag(self, supportedActions):
         selected = [i.row() for i in self.selectedIndexes()]
         drag_rows = sorted(set(selected))
-        if not drag_rows: return
+        if not drag_rows:
+            return
         self.clearSelection()
         for r in drag_rows:
             self.item(r).setSelected(True)
@@ -158,11 +161,15 @@ class DragDropListWidget(QtWidgets.QListWidget):
         except:
             e.ignore()
             return
-        if not drag_rows: e.ignore(); return
+        if not drag_rows:
+            e.ignore()
+            return
         pos = e.pos()
         target_item = self.itemAt(pos)
         target_row = self.row(target_item) if target_item else self.count()
-        if target_row in drag_rows: e.ignore(); return
+        if target_row in drag_rows:
+            e.ignore()
+            return
         insert_at = target_row if target_row <= max(drag_rows) else target_row - len(drag_rows)
         dragged_items = []
         for r in reversed(sorted(drag_rows)):
@@ -180,73 +187,104 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Scene Flow Organizer")
-        self.settings = QSettings("ImageSceneFlowOrganizer", "Settings")
 
+        # Apply dark theme
+        self.apply_dark_theme()
+
+        self.settings = QSettings("ImageSceneFlowOrganizer", "Settings")
         # Restore previous geometry & window state if they exist
         geometry = self.settings.value("geometry")
         if geometry:
             self.restoreGeometry(geometry)
-
         window_state = self.settings.value("windowState")
         if window_state:
             self.restoreState(window_state)
-
         # First launch → start maximized (most reliable method)
         if not geometry:
             self.showMaximized()
-
         self.folder = None
         self.preview_locked = False
         self.last_search_index = {1: -1, 2: -1}
         self.current_folder_files = set()
-
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
-
         left_panel = QtWidgets.QVBoxLayout()
         left_panel.setSpacing(10)
         left_panel.setContentsMargins(15, 15, 15, 15)
 
-        btn_style = "QPushButton { padding: 10px 16px; font-weight: bold; font-size: 13px; border-radius: 6px; margin: 3px 0; }"
+        btn_style = """
+            QPushButton {
+                padding: 10px 16px;
+                font-weight: 600;
+                font-size: 13px;
+                border-radius: 8px;
+                margin: 3px 0;
+                border: none;
+            }
+            QPushButton:hover {
+                opacity: 0.9;
+            }
+            QPushButton:pressed {
+                opacity: 0.8;
+            }
+        """
 
         open_btn = QtWidgets.QPushButton("Open Folder")
-        open_btn.setStyleSheet(btn_style + "background: #1976D2; color: white;")
+        open_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         open_btn.clicked.connect(self.open_folder)
 
         reload_btn = QtWidgets.QPushButton("Reload Folder")
-        reload_btn.setStyleSheet(btn_style + "background: #7B1FA2; color: white;")
+        reload_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         reload_btn.clicked.connect(self.reload_folder)
 
         top_btn = QtWidgets.QPushButton("Move Selected to Top")
-        top_btn.setStyleSheet(btn_style + "background: #2E7D32; color: white;")
+        top_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         top_btn.clicked.connect(self.move_to_top)
 
         bottom_btn = QtWidgets.QPushButton("Move Selected to Bottom")
-        bottom_btn.setStyleSheet(btn_style + "background: #C62828; color: white;")
+        bottom_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         bottom_btn.clicked.connect(self.move_to_bottom)
 
         clear_btn = QtWidgets.QPushButton("Clear Selection")
-        clear_btn.setStyleSheet(btn_style + "background: #757575; color: white;")
+        clear_btn.setStyleSheet(btn_style + "background: #636366; color: white;")
         clear_btn.clicked.connect(lambda: self.list.clearSelection())
 
         rename_all_btn = QtWidgets.QPushButton("Rename All")
-        rename_all_btn.setStyleSheet(btn_style + "background: #F57C00; color: white;")
+        rename_all_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         rename_all_btn.clicked.connect(self.rename_ordered)
 
         rename_selected_btn = QtWidgets.QPushButton("Rename Selected")
-        rename_selected_btn.setStyleSheet(btn_style + "background: #0288D1; color: white;")
+        rename_selected_btn.setStyleSheet(btn_style + "background: #0a84ff; color: white;")
         rename_selected_btn.clicked.connect(self.rename_selected)
 
         self.thumb_label = QtWidgets.QLabel(f"Thumbnail Size: {DEFAULT_THUMB}px")
-        self.thumb_label.setStyleSheet("font-size: 13px; color: #333;")
+        self.thumb_label.setStyleSheet("font-size: 13px; color: #e0e0e0; font-weight: 500;")
 
         self.thumb_slider = QtWidgets.QSlider(Qt.Horizontal)
         self.thumb_slider.setRange(THUMB_MIN, THUMB_MAX)
         self.thumb_slider.setValue(DEFAULT_THUMB)
         self.thumb_slider.valueChanged.connect(self.update_thumb_size)
+        self.thumb_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #2a2a2a;
+                height: 6px;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0a84ff;
+                width: 16px;
+                height: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #409cff;
+            }
+        """)
 
         search1_label = QtWidgets.QLabel("Search 1 (Double Left-Click):")
-        search1_label.setStyleSheet("font-weight: bold; color: #1976D2;")
+        search1_label.setStyleSheet("font-weight: 600; color: #0a84ff; font-size: 12px;")
+
         self.search_input1 = SmartLineEdit()
         self.search_input1.setPlaceholderText("Double left-click → fill & lock | LClick: copy+clear | RClick: paste")
         self.search_input1.returnPressed.connect(lambda: self.search_image(1, prev=False))
@@ -262,7 +300,8 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         search_layout1.addWidget(self.search_down_btn1)
 
         search2_label = QtWidgets.QLabel("Search 2 (Double Right-Click):")
-        search2_label.setStyleSheet("font-weight: bold; color: #C62828;")
+        search2_label.setStyleSheet("font-weight: 600; color: #0a84ff; font-size: 12px;")
+
         self.search_input2 = SmartLineEdit()
         self.search_input2.setPlaceholderText("Double right-click → fill & unlock | LClick: copy+clear | RClick: paste")
         self.search_input2.returnPressed.connect(lambda: self.search_image(2, prev=False))
@@ -283,12 +322,12 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.preview.setMinimumWidth(400)
         self.preview.setStyleSheet("""
             QLabel {
-                background: #0d1117;
-                color: #ccc;
-                border: 3px dashed #444;
+                background: #1c1c1e;
+                color: #a0a0a0;
+                border: 2px dashed #3a3a3c;
                 border-radius: 12px;
-                font-size: 18px;
-                font-weight: bold;
+                font-size: 16px;
+                font-weight: 500;
             }
         """)
 
@@ -300,15 +339,17 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.progress_bar.setFormat("Loading: %p%")
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                border: 2px solid #444;
+                border: 2px solid #3a3a3c;
                 border-radius: 6px;
                 text-align: center;
-                background: #222;
-                color: white;
-                font-weight: bold;
+                background: #1c1c1e;
+                color: #e0e0e0;
+                font-weight: 600;
+                height: 24px;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4CAF50, stop:1 #8BC34A);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #30d158, stop:1 #32d74b);
                 border-radius: 4px;
             }
         """)
@@ -318,13 +359,14 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.status_label = QtWidgets.QLabel("No folder opened")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet(
-            "font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
+            "font-size: 13px; padding: 8px; color: #a0a0a0; background: #1c1c1e; "
+            "border-radius: 6px; border: 1px solid #3a3a3c;")
         self.status_label.setFixedHeight(40)
 
         # Credit line
         credit_label = QtWidgets.QLabel("Developed by Ivan Sicaja © 2026. All rights reserved.")
         credit_label.setAlignment(Qt.AlignCenter)
-        credit_label.setStyleSheet("font-size: 11px; color: #666; padding: 8px;")
+        credit_label.setStyleSheet("font-size: 11px; color: #636366; padding: 8px;")
 
         # Assemble left panel
         left_panel.addWidget(open_btn)
@@ -361,7 +403,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         left_widget = QtWidgets.QWidget()
         left_widget.setLayout(left_panel)
         left_widget.setFixedWidth(460)
-
         main_layout.addWidget(left_widget)
         main_layout.addWidget(self.list, 1)
 
@@ -377,6 +418,132 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.folder_watch_timer.start(5000)
 
         self.show()
+
+    def apply_dark_theme(self):
+        """Apply professional Apple-style dark theme to the entire application"""
+        palette = QtGui.QPalette()
+
+        # Base colors - Apple dark mode inspired
+        palette.setColor(QtGui.QPalette.Window, QtGui.QColor(28, 28, 30))
+        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(224, 224, 224))
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor(22, 22, 23))
+        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(44, 44, 46))
+        palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor(58, 58, 60))
+        palette.setColor(QtGui.QPalette.ToolTipText, QtGui.QColor(224, 224, 224))
+        palette.setColor(QtGui.QPalette.Text, QtGui.QColor(224, 224, 224))
+        palette.setColor(QtGui.QPalette.Button, QtGui.QColor(58, 58, 60))
+        palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(224, 224, 224))
+        palette.setColor(QtGui.QPalette.BrightText, QtGui.QColor(255, 255, 255))
+        palette.setColor(QtGui.QPalette.Link, QtGui.QColor(10, 132, 255))
+        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor(10, 132, 255))
+        palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor(255, 255, 255))
+
+        # Disabled state colors
+        palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.WindowText, QtGui.QColor(127, 127, 127))
+        palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.Text, QtGui.QColor(127, 127, 127))
+        palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.ButtonText, QtGui.QColor(127, 127, 127))
+        palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.Highlight, QtGui.QColor(58, 58, 60))
+        palette.setColor(QtGui.QPalette.Disabled, QtGui.QPalette.HighlightedText, QtGui.QColor(127, 127, 127))
+
+        QApplication.setPalette(palette)
+
+        # Global stylesheet for fine-tuning
+        app_stylesheet = """
+            QMainWindow {
+                background-color: #1c1c1e;
+            }
+            QWidget {
+                background-color: #1c1c1e;
+                color: #e0e0e0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+            QLineEdit {
+                background-color: #2c2c2e;
+                border: 1px solid #3a3a3c;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: #e0e0e0;
+                selection-background-color: #0a84ff;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0a84ff;
+            }
+            QPushButton {
+                background-color: #3a3a3c;
+                color: #e0e0e0;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #48484a;
+            }
+            QPushButton:pressed {
+                background-color: #2c2c2e;
+            }
+            QListWidget {
+                background-color: #1c1c1e;
+                border: 1px solid #3a3a3c;
+                border-radius: 8px;
+                color: #e0e0e0;
+                outline: none;
+            }
+            QListWidget::item {
+                color: #e0e0e0;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QListWidget::item:selected {
+                background-color: #0a84ff;
+                color: #ffffff;
+            }
+            QListWidget::item:hover {
+                background-color: #2c2c2e;
+            }
+            QScrollBar:vertical {
+                background: #1c1c1e;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #48484a;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #636366;
+            }
+            QScrollBar:horizontal {
+                background: #1c1c1e;
+                height: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:horizontal {
+                background: #48484a;
+                border-radius: 6px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #636366;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                border: none;
+                background: none;
+            }
+            QMessageBox {
+                background-color: #2c2c2e;
+            }
+            QMessageBox QLabel {
+                color: #e0e0e0;
+            }
+            QMessageBox QPushButton {
+                min-width: 80px;
+                padding: 8px 16px;
+            }
+        """
+        QApplication.instance().setStyleSheet(app_stylesheet)
 
     def closeEvent(self, event):
         self.settings.setValue("geometry", self.saveGeometry())
@@ -415,17 +582,13 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def load_folder_contents(self):
         if not self.folder:
             return
-
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QApplication.processEvents()
-
         self.list.clear()
         self.list.thumbnail_cache.clear()
-
         files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         files.sort(key=natural_key)
-
         total_files = len(files)
         for idx, f in enumerate(files):
             path = os.path.join(self.folder, f)
@@ -433,11 +596,9 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             item.setData(Qt.UserRole, path)
             item.setIcon(self.list.get_thumbnail_icon(path))
             self.list.addItem(item)
-
             progress = int(((idx + 1) / total_files) * 100)
             self.progress_bar.setValue(progress)
             QApplication.processEvents()
-
         self.progress_bar.setVisible(False)
         self.current_folder_files = set(files)
         self.update_status_label(in_sync=True)
@@ -446,10 +607,8 @@ class ImageOrganizer(QtWidgets.QMainWindow):
     def check_for_new_files(self):
         if not self.folder or not os.path.isdir(self.folder):
             return
-
         current_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         current_set = set(current_files)
-
         if current_set == self.current_folder_files:
             self.update_status_label(in_sync=True)
         else:
@@ -460,27 +619,24 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if not self.folder:
             self.status_label.setText("No folder opened")
             self.status_label.setStyleSheet(
-                "font-size: 13px; padding: 8px; color: #aaa; background: #222; border-radius: 6px;")
+                "font-size: 13px; padding: 8px; color: #a0a0a0; background: #1c1c1e; "
+                "border-radius: 6px; border: 1px solid #3a3a3c;")
             return
-
         if in_sync:
             self.status_label.setText("✓ All images in folder are loaded")
             self.status_label.setStyleSheet(
-                "font-size: 13px; padding: 8px; color: #4CAF50; font-weight: bold; background: #222; border-radius: 6px;")
+                "font-size: 13px; padding: 8px; color: #30d158; font-weight: 600; "
+                "background: #1c1c1e; border-radius: 6px; border: 1px solid #30d158;")
         else:
             self.status_label.setText(f"⚠ {new_count} new image(s) added – Reload recommended")
             self.status_label.setStyleSheet(
-                "font-size: 13px; padding: 8px; color: #FF9800; font-weight: bold; background: #222; border-radius: 6px;")
+                "font-size: 13px; padding: 8px; color: #ff9f0a; font-weight: 600; "
+                "background: #1c1c1e; border-radius: 6px; border: 1px solid #ff9f0a;")
 
     def reload_folder(self):
-        # ────────────────────────────────────────────────────────────────
-        # The rest of the methods remain completely unchanged
-        # ────────────────────────────────────────────────────────────────
-
         if not self.folder or self.list.count() == 0:
             QtWidgets.QMessageBox.warning(self, "Error", "No folder loaded!")
             return
-
         reply = QtWidgets.QMessageBox.question(
             self, "Reload Folder",
             "This will:\n1. Rename all current images to 1,2,3...\n2. Load any new images from the folder\n\nContinue?",
@@ -488,14 +644,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         )
         if reply != QtWidgets.QMessageBox.Yes:
             return
-
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QApplication.processEvents()
-
         temp_paths = []
         total_operations = self.list.count()
-
         for i in range(self.list.count()):
             item = self.list.item(i)
             old_path = item.data(Qt.UserRole)
@@ -514,13 +667,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 self.progress_bar.setVisible(False)
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
-
         new_files = [f for f in os.listdir(self.folder) if
                      os.path.splitext(f)[1].lower() in SUPPORTED_EXT and not f.startswith("__TMP_RENAME_")]
         new_files.sort(key=natural_key)
         new_paths = []
         counter = 0
-
         for f in new_files:
             old_new_path = os.path.join(self.folder, f)
             ext = os.path.splitext(f)[1]
@@ -538,7 +689,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename new file: {e}")
                 return
             counter += 1
-
         num_counter = 1
         for idx, (item, tmp_path, ext) in enumerate(temp_paths):
             new_name = f"{num_counter}{ext}"
@@ -561,32 +711,25 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
             num_counter += 1
-
         for new_path in new_paths:
             f = os.path.basename(new_path)
             item = QtWidgets.QListWidgetItem(f)
             item.setData(Qt.UserRole, new_path)
             item.setIcon(self.list.get_thumbnail_icon(new_path))
             self.list.addItem(item)
-
         items = []
         for _ in range(self.list.count()):
             items.append(self.list.takeItem(0))
-
         items.sort(key=lambda it: natural_key(it.text()))
-
         for it in items:
             self.list.addItem(it)
-
         self.progress_bar.setValue(100)
         QApplication.processEvents()
         self.progress_bar.setVisible(False)
-
         final_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         self.current_folder_files = set(final_files)
         self.update_status_label(in_sync=True)
         self.setWindowTitle(f"Image Scene Flow Organizer — {self.list.count()} images")
-
         QtWidgets.QMessageBox.information(self, "Success",
                                           f"Folder reloaded! Existing files renamed, {len(new_paths)} new files added and renamed to generic_.")
 
@@ -611,7 +754,8 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
     def move_to_top(self):
         items = sorted(self.list.selectedItems(), key=lambda x: self.list.row(x))
-        if not items: return
+        if not items:
+            return
         self.list.setUpdatesEnabled(False)
         for item in reversed(items):
             self.list.takeItem(self.list.row(item))
@@ -623,7 +767,8 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
     def move_to_bottom(self):
         items = sorted(self.list.selectedItems(), key=lambda x: self.list.row(x))
-        if not items: return
+        if not items:
+            return
         self.list.setUpdatesEnabled(False)
         for item in reversed(items):
             self.list.takeItem(self.list.row(item))
@@ -638,12 +783,10 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if not self.folder or self.list.count() == 0:
             QtWidgets.QMessageBox.warning(self, "Error", "No images loaded!")
             return
-
         if QtWidgets.QMessageBox.question(self, "Rename All",
                                           f"Rename all {self.list.count()} images to 1, 2, 3, etc.?",
                                           QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
             return
-
         temp_paths = []
         for i in range(self.list.count()):
             item = self.list.item(i)
@@ -652,7 +795,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             tmp = os.path.join(self.folder, f"__TMP_RENAME_{i}{ext}")
             os.rename(old, tmp)
             temp_paths.append((item, tmp, ext))
-
         renamed = 0
         for idx, (item, tmp, ext) in enumerate(temp_paths, start=1):
             new = os.path.join(self.folder, f"{idx}{ext}")
@@ -660,7 +802,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             item.setData(Qt.UserRole, new)
             item.setText(os.path.basename(new))
             renamed += 1
-
         QtWidgets.QMessageBox.information(self, "Done", f"Renamed {renamed} images!")
 
     def rename_selected(self):
@@ -668,27 +809,21 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if not sel:
             QtWidgets.QMessageBox.warning(self, "No Selection", "Please select at least one image.")
             return
-
         base, ok = QtWidgets.QInputDialog.getText(self, "Rename Selected", "Enter base name (e.g. 0):")
         if not ok or not base.strip():
             return
-
         base = base.strip()
         renamed_items = sorted(sel, key=lambda x: self.list.row(x))
-
         max_counter = 0
         pattern = re.compile(rf"^{re.escape(base)}_(\d{{6}})\.[a-zA-Z]{{3,4}}$", re.IGNORECASE)
-
         for i in range(self.list.count()):
             name = self.list.item(i).text()
             match = pattern.match(name)
             if match:
                 max_counter = max(max_counter, int(match.group(1)))
-
         counter = max_counter + 1
         used_names = {self.list.item(i).text() for i in range(self.list.count())}
         new_items = []
-
         for item in renamed_items:
             old_path = item.data(Qt.UserRole)
             ext = os.path.splitext(old_path)[1]
@@ -707,11 +842,9 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to rename: {e}")
                 return
-
         rows = sorted([self.list.row(itm) for itm in new_items], reverse=True)
         for r in rows:
             self.list.takeItem(r)
-
         insert_at = 0
         for i in range(self.list.count()):
             name = self.list.item(i).text()
@@ -720,7 +853,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             else:
                 if insert_at > 0:
                     break
-
         if insert_at == 0:
             sample = new_items[0].text()
             for i in range(self.list.count()):
@@ -729,14 +861,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                     break
             else:
                 insert_at = self.list.count()
-
         for i, item in enumerate(new_items):
             self.list.insertItem(insert_at + i, item)
             item.setSelected(True)
-
         if new_items:
             self.list.scrollToItem(new_items[0], QAbstractItemView.PositionAtCenter)
-
         QtWidgets.QMessageBox.information(self, "Success", f"Renamed and placed {len(new_items)} images perfectly!")
 
     def search_image(self, search_bar, prev=False):
@@ -744,11 +873,9 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         text = text.strip().lower()
         if not text:
             return
-
         total = self.list.count()
         if total == 0:
             return
-
         start_index = self.last_search_index[search_bar]
         if start_index == -1:
             selected = self.list.selectedItems()
@@ -756,10 +883,8 @@ class ImageOrganizer(QtWidgets.QMainWindow):
                 start_index = self.list.row(selected[0])
             else:
                 start_index = -1 if not prev else 0
-
         step = -1 if prev else 1
         current_idx = (start_index + step) % total
-
         for _ in range(total):
             item = self.list.item(current_idx)
             if item and text in item.text().lower():
