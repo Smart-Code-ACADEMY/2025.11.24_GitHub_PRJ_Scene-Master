@@ -17,6 +17,7 @@ UPDATED:
 - Status stays green when no actual folder changes (only yellow when files added/removed from folder)
 - Progress bar + status + credit above search (no overlap on preview)
 - Rename skips missing/deleted files silently (no crash)
+- FIXED: Thumbnail slider now actually resizes thumbnails progressively (not just padding)
 """
 import os
 import sys
@@ -74,6 +75,14 @@ class DragDropListWidget(QtWidgets.QListWidget):
         self.itemDoubleClicked.connect(self.handle_double_click)
         self.setFocusPolicy(Qt.StrongFocus)
 
+        # Progressive thumbnail regeneration
+        self.resize_timer = QTimer()
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.start_progressive_resize)
+        self.progressive_timer = QTimer()
+        self.progressive_timer.timeout.connect(self.resize_next_thumbnail)
+        self.resize_index = 0
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Left or event.key() == Qt.Key_Right:
             current_row = self.currentRow()
@@ -106,18 +115,64 @@ class DragDropListWidget(QtWidgets.QListWidget):
         super().mouseDoubleClickEvent(event)
 
     def setThumbnailSize(self, size: int):
+        """Called when slider changes - triggers progressive resize"""
         self.thumbnail_size = size
+        # Immediately update icon and grid size (allocates space)
         self.setIconSize(QtCore.QSize(size, size))
         self.setGridSize(QtCore.QSize(size + PADDING, size + PADDING + 50))
-        for i in range(self.count()):
-            item = self.item(i)
-            path = item.data(Qt.UserRole)
-            if path:
-                item.setIcon(self.get_thumbnail_icon(path))
 
-    def get_thumbnail_icon(self, path):
-        if path in self.thumbnail_cache:
-            return self.thumbnail_cache[path]
+        # Stop any ongoing resize
+        self.progressive_timer.stop()
+
+        # Clear cache to force regeneration at new size
+        self.thumbnail_cache.clear()
+
+        # Restart from beginning
+        self.resize_index = 0
+
+        # Delay start to debounce rapid slider movements
+        self.resize_timer.stop()
+        self.resize_timer.start(150)  # Wait 150ms after last slider change
+
+    def start_progressive_resize(self):
+        """Start the progressive thumbnail regeneration"""
+        self.resize_index = 0
+        if self.count() > 0:
+            self.progressive_timer.start(0)  # Process as fast as possible
+
+    def resize_next_thumbnail(self):
+        """Regenerate one thumbnail at a time"""
+        if self.resize_index >= self.count():
+            # All done
+            self.progressive_timer.stop()
+            return
+
+        item = self.item(self.resize_index)
+        if item:
+            path = item.data(Qt.UserRole)
+            if path and os.path.exists(path):
+                # Generate new thumbnail at current size
+                icon = self.get_thumbnail_icon(path, force_regenerate=True)
+                item.setIcon(icon)
+
+        self.resize_index += 1
+
+        # Process events every 10 thumbnails to keep UI responsive
+        if self.resize_index % 10 == 0:
+            QApplication.processEvents()
+
+    def get_thumbnail_icon(self, path, force_regenerate=False):
+        """Get or generate thumbnail icon"""
+        # Check cache unless forced to regenerate
+        if not force_regenerate and path in self.thumbnail_cache:
+            cached_icon = self.thumbnail_cache[path]
+            # Verify cached icon is correct size
+            if not cached_icon.isNull():
+                pixmap = cached_icon.pixmap(QtCore.QSize(self.thumbnail_size, self.thumbnail_size))
+                if pixmap.width() == self.thumbnail_size or pixmap.height() == self.thumbnail_size:
+                    return cached_icon
+
+        # Generate new thumbnail
         if os.path.exists(path):
             pix = QtGui.QPixmap(path)
             if not pix.isNull():
@@ -126,6 +181,7 @@ class DragDropListWidget(QtWidgets.QListWidget):
                 icon = QtGui.QIcon(scaled)
                 self.thumbnail_cache[path] = icon
                 return icon
+
         return QtGui.QIcon()
 
     def startDrag(self, supportedActions):
@@ -204,10 +260,10 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         left_panel = QtWidgets.QVBoxLayout()
-        left_panel.setSpacing(6)  # Reduced from 10
+        left_panel.setSpacing(6)
         left_panel.setContentsMargins(15, 15, 15, 15)
 
-        # Compact blue buttons style (smaller padding)
+        # Compact blue buttons style
         blue_btn_style = """
             QPushButton {
                 padding: 6px 12px;
@@ -358,7 +414,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
 
         self.preview = QtWidgets.QLabel("Preview\n(Double LEFT-click: lock | Double RIGHT-click: unlock)")
         self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setFixedHeight(350)  # Reduced from 420 to fit better
+        self.preview.setFixedHeight(350)
         self.preview.setMinimumWidth(400)
         self.preview.setStyleSheet("""
             QLabel {
@@ -535,7 +591,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         current_files = [f for f in os.listdir(self.folder) if os.path.splitext(f)[1].lower() in SUPPORTED_EXT]
         current_set = set(current_files)
 
-        # Only show yellow if actual folder changes (files added/removed externally)
         if current_set == self.current_folder_files:
             self.update_status_label(in_sync=True)
         else:
@@ -552,13 +607,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             return
 
         if in_sync:
-            # Green - everything is in sync
             self.status_label.setText("✓ All images in folder are loaded")
             self.status_label.setStyleSheet(
                 "font-size: 11px; padding: 6px; color: #30d158; font-weight: 600; "
                 "background: #1c1c1e; border-radius: 6px; border: 1px solid #30d158;")
         else:
-            # Yellow - only when actual folder changes detected
             parts = []
             if added_count > 0:
                 parts.append(f"{added_count} added")
