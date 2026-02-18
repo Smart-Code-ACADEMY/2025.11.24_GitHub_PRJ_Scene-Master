@@ -18,6 +18,8 @@ UPDATED:
 - Progress bar + status + credit above search (no overlap on preview)
 - Rename skips missing/deleted files silently (no crash)
 - FIXED: Thumbnail slider now actually resizes thumbnails progressively (not just padding)
+- FIXED: Preview maximized to full width (no left/right padding)
+- FIXED: Copyright moved to absolute bottom in standard professional position
 """
 import os
 import sys
@@ -261,7 +263,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         self.setCentralWidget(central)
         left_panel = QtWidgets.QVBoxLayout()
         left_panel.setSpacing(6)
-        left_panel.setContentsMargins(15, 15, 15, 15)
+        left_panel.setContentsMargins(15, 15, 15, 0)  # No bottom margin - copyright goes there
 
         # Compact blue buttons style
         blue_btn_style = """
@@ -344,7 +346,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             QSlider::handle:horizontal:hover { background: #007AFF; }
         """)
 
-        # Progress bar, status, credit (compact)
+        # Progress bar, status (compact)
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -373,10 +375,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
             "font-size: 11px; padding: 6px; color: #a0a0a0; background: #1c1c1e; "
             "border-radius: 6px; border: 1px solid #3a3a3c;")
         self.status_label.setFixedHeight(32)
-
-        credit_label = QtWidgets.QLabel("Developed by Ivan Sicaja © 2026. All rights reserved.")
-        credit_label.setAlignment(Qt.AlignCenter)
-        credit_label.setStyleSheet("font-size: 10px; color: #636366; padding: 4px;")
 
         search1_label = QtWidgets.QLabel("Search 1 (Double Left-Click):")
         search1_label.setStyleSheet("font-weight: 600; color: #0a84ff; font-size: 11px;")
@@ -412,10 +410,11 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         search_layout2.addWidget(self.search_up_btn2)
         search_layout2.addWidget(self.search_down_btn2)
 
+        # Preview with full width (no minimum width, maximizes available space)
         self.preview = QtWidgets.QLabel("Preview\n(Double LEFT-click: lock | Double RIGHT-click: unlock)")
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setFixedHeight(350)
-        self.preview.setMinimumWidth(400)
+        # Removed setMinimumWidth - now uses full available width
         self.preview.setStyleSheet("""
             QLabel {
                 background: #1c1c1e;
@@ -441,8 +440,6 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         left_panel.addSpacing(6)
         left_panel.addWidget(self.progress_bar)
         left_panel.addWidget(self.status_label)
-        left_panel.addSpacing(4)
-        left_panel.addWidget(credit_label)
         left_panel.addSpacing(8)
         left_panel.addWidget(search1_label)
         left_panel.addLayout(search_layout1)
@@ -451,7 +448,15 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         left_panel.addLayout(search_layout2)
         left_panel.addSpacing(10)
         left_panel.addWidget(self.preview)
-        left_panel.addStretch()
+        left_panel.addStretch()  # Pushes copyright to bottom
+
+        # Copyright at the very bottom - standard professional position
+        credit_label = QtWidgets.QLabel("Developed by Ivan Sicaja © 2026. All rights reserved.")
+        credit_label.setAlignment(Qt.AlignCenter)
+        credit_label.setStyleSheet(
+            "font-size: 9px; color: #636366; padding: 8px 0; "
+            "border-top: 1px solid #2a2a2a;")
+        left_panel.addWidget(credit_label)
 
         self.list = DragDropListWidget()
         self.list.itemSelectionChanged.connect(self.update_preview)
@@ -542,7 +547,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if os.path.exists(path):
             pix = QtGui.QPixmap(path)
             if not pix.isNull():
-                scaled = pix.scaled(self.preview.size() - QtCore.QSize(40, 40),
+                scaled = pix.scaled(self.preview.size() - QtCore.QSize(20, 20),
                                     Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.preview.setPixmap(scaled)
 
@@ -737,7 +742,7 @@ class ImageOrganizer(QtWidgets.QMainWindow):
         if os.path.exists(path):
             pix = QtGui.QPixmap(path)
             if not pix.isNull():
-                scaled = pix.scaled(self.preview.size() - QtCore.QSize(40, 40),
+                scaled = pix.scaled(self.preview.size() - QtCore.QSize(20, 20),
                                     Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.preview.setPixmap(scaled)
 
